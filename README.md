@@ -4,6 +4,8 @@
 
 You pilot an X-Wing fighter in a galaxy far, far away, battling Imperial TIE Fighters and a formidable TIE Boss. Destroy enemies to rack up points, collect droid powerups for special abilities, and survive as long as possible. With retro arcade vibes and a Star Wars-inspired aesthetic, this game offers smooth controls, dynamic visuals, and immersive gameplay.
 
+![X-Wing Battle Screenshot](https://raw.githubusercontent.com/JonPurvis/xwing-battle/refs/heads/main/readme_image.png)
+
 ## Features :star:
 
 **Engaging Gameplay**: Control an X-Wing to shoot down TIE Fighters (25 points each) and a TIE Boss (200 points) while dodging collisions.
