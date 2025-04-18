@@ -35,7 +35,7 @@
     <div id="instructionsScreen">
         <div id="instructionsContent">
             <h1>Instructions</h1>
-            <p>In a galaxy far, far away, you pilot an X-Wing fighter against the Empire's TIE Fighters. Use Arrow Keys or WASD to move and rotate your X-Wing, and press the Spacebar to fire laser blasts (press to shoot, no holding). Your objective is to destroy enemy TIE Fighters to earn 25 points each, or 200 points for the massive TIE Boss, while surviving as long as possible. Collect R2-D2 droids for random 10-second powerups: Boost increases your ship's speed, Fast Shot lets you shoot more frequently, and Scatter Shot fires a ring of bullets around your ship. You start with 6 lives, and collisions with enemies reduce lives (Boss collisions take 2 lives), with the game ending when all lives are lost. Earn an extra life every 500 points. May the Force be with you!</p>
+            <p>In a galaxy far, far away, you pilot an X-Wing fighter against the Empire's TIE Fighters. Use Arrow Keys or WASD to move and rotate your X-Wing, and press the Spacebar to fire laser blasts. Your objective is to destroy enemy TIE Fighters to earn 25 points each, or 200 points for the massive TIE Boss, while surviving as long as possible. Collect R2-D2 droids for random 10-second powerups: Boost increases your ship's speed, Fast Shot lets you shoot more frequently, Scatter Shot fires a ring of bullets around your ship, and Helping Hand spawns a friendly ship to assist you. You start with 6 lives, and collisions with enemies reduce lives (Boss collisions take 2 lives), with the game ending when all lives are lost. Earn an extra life every 250 points. May the Force be with you!</p>
         </div>
         <button onclick="backToStart()">Back</button>
     </div>
@@ -113,6 +113,7 @@
         let shootingStars = [];
         let explosions = [];
         let powerups = [];
+        let friendlyShip = null;
         let score = 0;
         let lives = 6;
         let enemiesKilled = 0;
@@ -143,37 +144,19 @@
 
         // Start screen ship constructor
         class StartShip {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
+            constructor() {
+                this.x = 100;
+                this.baseY = 100;
+                this.y = this.baseY;
                 this.size = 20;
                 this.angle = 0;
-                this.targetAngle = 0;
-                this.speed = 1;
-                this.dx = 0;
-                this.dy = 0;
-                this.time = Math.random() * 10;
                 this.lastShotTime = 0;
                 this.shotInterval = 2000; // Shoot every 2 seconds
             }
 
             update(timestamp) {
-                this.time += 0.01;
-                this.targetAngle = Math.sin(this.time) * 0.5;
-                this.angle += (this.targetAngle - this.angle) * 0.05;
-                this.dx = Math.cos(this.angle) * this.speed;
-                this.dy = Math.sin(this.angle) * this.speed;
-                this.x += this.dx;
-                this.y += this.dy;
-                const minX = 20;
-                const maxX = 150;
-                const minY = 20;
-                const maxY = 150;
-                if (this.x < minX) this.x = minX;
-                if (this.x > maxX) this.x = maxX;
-                if (this.y < minY) this.y = minY;
-                if (this.y > maxY) this.y = maxY;
-
+                // Oscillate vertically to give flying impression
+                this.y = this.baseY + Math.sin(timestamp * 0.002) * 20;
                 // Shoot periodically
                 if (timestamp - this.lastShotTime > this.shotInterval) {
                     this.shoot();
@@ -224,7 +207,6 @@
                 const noseX = this.x + Math.cos(this.angle) * this.size;
                 const noseY = this.y + Math.sin(this.angle) * this.size;
                 startBullets.push(new StartBullet(noseX, noseY, this.angle));
-                playPewPew();
             }
         }
 
@@ -258,6 +240,141 @@
                 ctx.lineWidth = this.size;
                 ctx.stroke();
                 ctx.restore();
+            }
+        }
+
+        // Friendly ship constructor (Helping Hand powerup)
+        class FriendlyShip {
+            constructor() {
+                this.x = -20; // Start off-screen (left edge)
+                this.y = player.y;
+                this.size = 20;
+                this.angle = 0;
+                this.speed = 2;
+                this.lastShotTime = 0;
+                this.shotInterval = 1000;
+                this.state = 'entering';
+                this.enterTime = timeElapsed;
+                this.targetX = player.x;
+                this.targetY = player.y;
+            }
+
+            update(timestamp) {
+                if (this.state === 'entering') {
+                    const progress = (timeElapsed - this.enterTime) / 1; // 1-second entrance
+                    if (progress >= 1) {
+                        this.x = this.targetX;
+                        this.y = this.targetY;
+                        this.state = 'normal';
+                    } else {
+                        this.x = -this.size + (this.targetX + this.size) * progress;
+                        this.y = player.y + (this.targetY - player.y) * progress;
+                    }
+                    this.angle = Math.atan2(this.targetY - this.y, this.targetX - this.x);
+                } else if (this.state === 'exiting') {
+                    this.x += Math.cos(this.angle) * this.speed * 2;
+                    this.y += Math.sin(this.angle) * this.speed * 2;
+                    if (this.x > canvas.width + this.size || this.x < -this.size || this.y > canvas.height + this.size || this.y < -this.size) {
+                        friendlyShip = null; // Remove after exiting
+                    }
+                } else {
+                    let target = null;
+                    let minDistance = Infinity;
+                    enemies.forEach((e) => {
+                        const dx = e.x + e.width / 2 - this.x;
+                        const dy = e.y + e.height / 2 - this.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            target = e;
+                        }
+                    });
+
+                    if (target) {
+                        const dx = target.x + target.width / 2 - this.x;
+                        const dy = target.y + target.height / 2 - this.y;
+                        const targetAngle = Math.atan2(dy, dx);
+                        const angleDiff = (targetAngle - this.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+                        this.angle += Math.min(Math.max(angleDiff * 0.05, -0.05), 0.05);
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        if (distance > 100) {
+                            this.x += Math.cos(this.angle) * this.speed;
+                            this.y += Math.sin(this.angle) * this.speed;
+                        }
+                    } else {
+                        const dx = player.x - this.x;
+                        const dy = player.y - this.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const targetAngle = Math.atan2(dy, dx) + Math.PI / 2;
+                        const angleDiff = (targetAngle - this.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+                        this.angle += Math.min(Math.max(angleDiff * 0.05, -0.05), 0.05);
+                        if (distance > 50) {
+                            this.x += Math.cos(this.angle) * this.speed;
+                            this.y += Math.sin(this.angle) * this.speed;
+                        }
+                    }
+
+                    if (this.x < 0) this.x = 0;
+                    if (this.x > canvas.width) this.x = canvas.width;
+                    if (this.y < 0) this.y = 0;
+                    if (this.y > canvas.height) this.y = canvas.height;
+
+                    if (timestamp - this.lastShotTime > this.shotInterval && target) {
+                        this.shoot();
+                        this.lastShotTime = timestamp;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                ctx.beginPath();
+                ctx.moveTo(this.size, 0);
+                ctx.lineTo(0, this.size / 4);
+                ctx.lineTo(-this.size, this.size / 4);
+                ctx.lineTo(-this.size, -this.size / 4);
+                ctx.lineTo(0, -this.size / 4);
+                ctx.closePath();
+                ctx.fillStyle = '#0f0';
+                ctx.fill();
+                ctx.fillStyle = '#ccc';
+                ctx.beginPath();
+                ctx.moveTo(-this.size / 2, -this.size / 4);
+                ctx.lineTo(-this.size * 1.5, -this.size);
+                ctx.lineTo(-this.size, -this.size / 4);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-this.size / 2, -this.size / 4);
+                ctx.lineTo(this.size / 2, -this.size);
+                ctx.lineTo(-this.size / 2, -this.size / 4);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-this.size / 2, this.size / 4);
+                ctx.lineTo(-this.size * 1.5, this.size);
+                ctx.lineTo(-this.size, this.size / 4);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-this.size / 2, this.size / 4);
+                ctx.lineTo(this.size / 2, this.size);
+                ctx.lineTo(-this.size / 2, this.size / 4);
+                ctx.fill();
+                ctx.fillStyle = '#aaa';
+                ctx.fillRect(-this.size / 4, -this.size / 8, this.size / 2, this.size / 4);
+                ctx.restore();
+            }
+
+            shoot() {
+                const noseX = this.x + Math.cos(this.angle) * this.size;
+                const noseY = this.y + Math.sin(this.angle) * this.size;
+                bullets.push(new Bullet(noseX, noseY, this.angle));
+                playPewPew();
+            }
+
+            startExiting() {
+                this.state = 'exiting';
+                this.angle = 0; // Fly right
             }
         }
 
@@ -372,7 +489,7 @@
                 this.dx = 1;
                 this.width = this.size;
                 this.height = this.size;
-                const types = ['boost', 'fastShot', 'scatterShot'];
+                const types = ['boost', 'fastShot', 'scatterShot', 'helpingHand'];
                 this.type = types[Math.floor(Math.random() * types.length)];
             }
 
@@ -385,7 +502,7 @@
                 ctx.translate(this.x + this.size / 2, this.y + this.size / 2);
                 ctx.fillStyle = '#c0c0c0';
                 ctx.fillRect(-this.size / 4, -this.size / 2, this.size / 2, this.size * 0.7);
-                ctx.fillStyle = this.type === 'boost' ? '#0f0' : this.type === 'fastShot' ? '#f00' : '#ff0';
+                ctx.fillStyle = this.type === 'boost' ? '#0f0' : this.type === 'fastShot' ? '#f00' : this.type === 'scatterShot' ? '#ff0' : '#0ff';
                 ctx.beginPath();
                 ctx.arc(0, -this.size / 2, this.size / 4, Math.PI, 0);
                 ctx.fill();
@@ -407,7 +524,7 @@
                 this.collisionSize = this.size * 1.5;
                 this.angle = 0;
                 this.speed = 0;
-                this.maxSpeed = 2;
+                this.maxSpeed = 2.5;
                 this.rotationSpeed = 0.03;
                 this.thrust = 0.03;
                 this.friction = 0.98;
@@ -417,6 +534,7 @@
             }
 
             update() {
+                if (!gameStarted || gameOver) return;
                 if (keys['ArrowLeft'] || keys['a']) this.angle -= this.rotationSpeed;
                 if (keys['ArrowRight'] || keys['d']) this.angle += this.rotationSpeed;
                 this.isThrusting = keys['ArrowUp'] || keys['w'];
@@ -489,7 +607,7 @@
             }
 
             shoot() {
-                if (!canShoot || timeElapsed * 1000 - lastShotTime < shotCooldown) return;
+                if (!canShoot || timeElapsed * 1000 - lastShotTime < shotCooldown || !gameStarted || gameOver) return;
                 const noseX = this.x + Math.cos(this.angle) * this.size;
                 const noseY = this.y + Math.sin(this.angle) * this.size;
                 if (activePowerup === 'scatterShot') {
@@ -548,7 +666,7 @@
                 this.width = this.size;
                 this.height = this.size;
                 this.setPosition();
-                this.speed = isBoss ? 1 : 1;
+                this.speed = isBoss ? 0.5 : 0.7;
                 this.color = '#666';
                 this.points = isBoss ? 200 : 25;
                 this.health = isBoss ? Math.floor(5 + score / 1000) : 1;
@@ -562,7 +680,7 @@
                     const centerY = this.y + this.height / 2;
                     const distances = [centerY, canvas.width - centerX, canvas.height - centerY, centerX];
                     const minDistance = Math.min(...distances);
-                    const fleeSpeed = 3;
+                    const fleeSpeed = 2;
                     if (minDistance === distances[0]) {
                         this.fleeDx = 0;
                         this.fleeDy = -fleeSpeed;
@@ -680,7 +798,7 @@
         const keys = {};
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
-            if (e.key === ' ' && !gameOver && gameStarted) {
+            if (e.key === ' ' && gameStarted && !gameOver) {
                 player.shoot();
             }
         });
@@ -729,9 +847,9 @@
                             enemiesKilled += 1;
                             playExplosion();
                             score += e.points;
-                            if (score >= lastLifeAwarded + 500 && lives < 6) {
+                            if (score >= lastLifeAwarded + 250 && lives < 6) {
                                 lives += 1;
-                                lastLifeAwarded = Math.floor(score / 500) * 500;
+                                lastLifeAwarded = Math.floor(score / 250) * 250;
                             }
                             if (e.isBoss) bossJustSpawned = false;
                         }
@@ -780,6 +898,9 @@
                     activePowerup = p.type;
                     powerupEndTime = timeElapsed + 10;
                     shotCooldown = activePowerup === 'fastShot' ? 200 : 500;
+                    if (activePowerup === 'helpingHand') {
+                        friendlyShip = new FriendlyShip();
+                    }
                     playPowerupSound();
                 }
             }
@@ -844,14 +965,14 @@
                 ctx.fillRect(x, y, barWidth, barHeight);
                 const timeRemaining = Math.max(0, powerupEndTime - timeElapsed);
                 const width = (timeRemaining / 10) * barWidth;
-                ctx.fillStyle = activePowerup === 'boost' ? '#0f0' : activePowerup === 'fastShot' ? '#f00' : '#ff0';
+                ctx.fillStyle = activePowerup === 'boost' ? '#0f0' : activePowerup === 'fastShot' ? '#f00' : activePowerup === 'scatterShot' ? '#ff0' : '#0ff';
                 ctx.fillRect(x, y, width, barHeight);
                 ctx.strokeStyle = '#fff';
                 ctx.strokeRect(x, y, barWidth, barHeight);
                 ctx.font = '16px Arial';
                 ctx.fillStyle = '#fff';
                 ctx.textAlign = 'center';
-                const powerupName = activePowerup === 'boost' ? 'Boost' : activePowerup === 'fastShot' ? 'Fast Shot' : 'Scatter Shot';
+                const powerupName = activePowerup === 'boost' ? 'Boost' : activePowerup === 'fastShot' ? 'Fast Shot' : activePowerup === 'scatterShot' ? 'Scatter Shot' : 'Helping Hand';
                 ctx.fillText(powerupName, x + barWidth / 2, y - 10);
                 ctx.textAlign = 'left';
                 ctx.restore();
@@ -901,7 +1022,6 @@
                 shootingStars.push(new ShootingStar());
             }
             ctx.restore();
-            // Update background offset for slow movement
             backgroundOffsetX += 0.1 * speedMultiplier;
             backgroundOffsetY += 0.1 * speedMultiplier;
             backgroundOffsetX = ((backgroundOffsetX % canvas.width) + canvas.width) % canvas.width;
@@ -910,15 +1030,15 @@
 
         // Update game state
         function update(timestamp) {
-            if (startScreen.style.display === 'flex' || instructionsScreen.style.display === 'block' || gameOverScreen.style.display === 'flex') {
+            if (startScreen.style.display === 'flex') {
                 if (startShip) {
                     startShip.update(timestamp);
                     startBullets.forEach((b) => b.update());
                     startBullets = startBullets.filter((b) => b.lifespan > 0);
                 }
-            }
-
-            if (gameStarted && !gameOver) {
+            } else if (instructionsScreen.style.display === 'block' || gameOverScreen.style.display === 'flex') {
+                // No updates needed for these screens
+            } else if (gameStarted && !gameOver) {
                 timeElapsed = (timestamp - gameStartTime) / 1000;
                 spawnInterval = Math.max(1000, 3000 - timeElapsed * 50 - score / 100);
 
@@ -932,7 +1052,9 @@
                         playTimeText.textContent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
                         enemiesKilledText.textContent = enemiesKilled;
                         gameOverScreen.style.display = 'flex';
-                        gameFadeOpacity = 1; // Reset opacity for game over screen
+                        startScreen.style.display = 'none';
+                        instructionsScreen.style.display = 'none';
+                        gameFadeOpacity = 1;
                     } else {
                         gameFadeOpacity = 1 - timeSinceDelay;
                     }
@@ -955,6 +1077,9 @@
                     }
 
                     if (activePowerup && timeElapsed > powerupEndTime) {
+                        if (activePowerup === 'helpingHand' && friendlyShip) {
+                            friendlyShip.startExiting();
+                        }
                         activePowerup = null;
                         shotCooldown = 500;
                     }
@@ -968,6 +1093,7 @@
                     bullets.forEach((b) => b.update());
                     explosions.forEach((e) => e.update());
                     powerups.forEach((p) => p.update());
+                    if (friendlyShip) friendlyShip.update(timestamp);
 
                     bullets = bullets.filter((b) => b.lifespan > 0);
                     enemies = enemies.filter((e) => {
@@ -993,11 +1119,10 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Always draw background
             if (gameStarted && !gameOver && !gameOverTriggered) {
-                drawBackground(1); // Normal speed for game
+                drawBackground(1);
             } else {
-                drawBackground(0.1); // Slow background for non-game screens
+                drawBackground(0.1);
             }
 
             if (startScreen.style.display === 'flex') {
@@ -1007,14 +1132,18 @@
                 }
             } else if (instructionsScreen.style.display === 'block') {
                 // Background already drawn
-            } else if (gameOverScreen.style.display === 'flex') {
-                // Background already drawn
             } else if (gameStarted && !gameOver) {
                 if (!gameOverTriggered) {
                     ctx.save();
                     ctx.globalAlpha = gameFadeOpacity;
                     player.draw();
                     ctx.restore();
+                    if (friendlyShip) {
+                        ctx.save();
+                        ctx.globalAlpha = gameFadeOpacity;
+                        friendlyShip.draw();
+                        ctx.restore();
+                    }
                 }
                 enemies.forEach((e) => e.draw());
                 bullets.forEach((b) => {
@@ -1055,19 +1184,30 @@
 
         // Start game
         function startGame() {
-            gameStarted = true;
-            gameStartTime = performance.now();
+            console.log('Starting game: Hiding startScreen and gameOverScreen, showing game');
             startScreen.style.display = 'none';
             instructionsScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            resetGame();
-            requestAnimationFrame(gameLoop);
+            gameStarted = true;
+            gameStartTime = performance.now();
+            player = new Player();
+            player.dx = 0;
+            player.dy = 0;
+            for (let key in keys) {
+                keys[key] = false;
+            }
+            canShoot = true;
+            gameOver = false;
+            gameOverTriggered = false;
+            gameFadeOpacity = 1;
         }
 
         // Show instructions
         function showInstructions() {
+            console.log('Showing instructions: Hiding startScreen and gameOverScreen, showing instructionsScreen');
             startScreen.style.display = 'none';
             instructionsScreen.style.display = 'block';
+            gameOverScreen.style.display = 'none';
             const content = document.getElementById('instructionsContent');
             content.style.animation = 'none';
             content.offsetHeight;
@@ -1079,6 +1219,7 @@
 
         // Back to start
         function backToStart() {
+            console.log('Returning to start: Hiding instructionsScreen and gameOverScreen, showing startScreen');
             instructionsScreen.style.display = 'none';
             startScreen.style.display = 'flex';
             gameOverScreen.style.display = 'none';
@@ -1086,21 +1227,27 @@
 
         // Return to start screen from game over
         function returnToStart() {
+            console.log('Game over return to start: Hiding gameOverScreen, showing startScreen, resetting game');
             gameOverScreen.style.display = 'none';
             startScreen.style.display = 'flex';
+            instructionsScreen.style.display = 'none';
             gameStarted = false;
             resetGame();
         }
 
         // Reset game state
         function resetGame() {
+            console.log('Resetting game: Initializing state, hiding gameOverScreen, showing startScreen');
             player = new Player();
+            player.dx = 0;
+            player.dy = 0;
             enemies = [];
             bullets = [];
             startBullets = [];
             shootingStars = [];
             explosions = [];
             powerups = [];
+            friendlyShip = null;
             score = 0;
             lives = 6;
             enemiesKilled = 0;
@@ -1110,10 +1257,11 @@
             gameFadeOpacity = 1;
             spawnInterval = 3000;
             bossInterval = 30000;
-            lastSpawn = gameStartTime || performance.now();
-            lastBossSpawn = gameStartTime || performance.now();
-            lastPowerupSpawn = gameStartTime || performance.now();
+            lastSpawn = performance.now();
+            lastBossSpawn = performance.now();
+            lastPowerupSpawn = performance.now();
             timeElapsed = 0;
+            gameStartTime = 0;
             lastLifeAwarded = 0;
             flashOpacity = 0;
             bossJustSpawned = false;
@@ -1124,16 +1272,18 @@
             canShoot = true;
             backgroundOffsetX = 0;
             backgroundOffsetY = 0;
-            startShip = new StartShip(50, 50);
+            startShip = new StartShip();
+            startScreen.style.display = 'flex';
+            instructionsScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            for (let key in keys) {
+                keys[key] = false;
+            }
             initStars();
         }
 
         // Initialize
-        initStars();
-        startShip = new StartShip(50, 50);
-        startScreen.style.display = 'flex';
-        gameOverScreen.style.display = 'none';
-        instructionsScreen.style.display = 'none';
+        resetGame();
         requestAnimationFrame(gameLoop);
     </script>
 </body>
