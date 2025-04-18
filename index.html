@@ -5,28 +5,149 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>X-Wing Battle</title>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #000; }
-        canvas { border: 2px solid #fff; }
-        #gameOver { display: none; position: absolute; color: white; font-family: Arial, sans-serif; text-align: center; background: transparent; width: 800px; height: 600px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #gameOver h1 { font-size: 48px; margin: 0; }
-        #gameOver p { font-size: 24px; margin: 10px 0; }
-        #gameOver button { font-size: 18px; padding: 10px 20px; cursor: pointer; background: #333; color: white; border: 1px solid white; margin-top: 20px; }
-        #gameOver button:hover { background: #555; }
-        #startScreen { position: absolute; color: white; font-family: Arial, sans-serif; text-align: center; background: transparent; width: 800px; height: 600px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        #startScreen h1 { font-size: 48px; margin: 0 0 40px 0; }
-        #startScreen button { font-size: 18px; padding: 10px 20px; cursor: pointer; background: #333; color: white; border: 1px solid white; margin: 10px; }
-        #startScreen button:hover { background: #555; }
-        #instructionsScreen { display: none; position: absolute; color: #ff0; font-family: Arial, sans-serif; text-align: center; background: transparent; width: 800px; height: 600px; perspective: 1000px; overflow: hidden; }
-        #instructionsContent { transform: rotateX(20deg) translateY(600px); animation: scrollInstructions 20s linear forwards; text-align: center; }
-        #instructionsContent h1 { font-size: 36px; margin: 20px 0; text-align: center; }
-        #instructionsContent p { font-size: 18px; margin: 10px 0; max-width: 400px; display: inline-block; text-align: center; line-height: 1.8; }
-        @keyframes scrollInstructions { to { transform: rotateX(20deg) translateY(-1000px); } }
-        #instructionsScreen button { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 18px; padding: 10px 20px; cursor: pointer; background: #333; color: white; border: 1px solid white; }
-        #instructionsScreen button:hover { background: #555; }
+        body { 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            background: #000; 
+        }
+        canvas { 
+            border: 2px solid #fff; 
+        }
+        #githubLink { 
+            text-align: center; 
+            margin-top: 10px; 
+        }
+        #githubLink a { 
+            color: #fff; 
+            text-decoration: none; 
+            font-family: Arial, sans-serif; 
+            font-size: 16px; 
+        }
+        #githubLink a:hover { 
+            text-decoration: underline; 
+        }
+        #gameOver { 
+            display: none; 
+            position: absolute; 
+            color: white; 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background: transparent; 
+            width: 800px; 
+            height: 600px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        #gameOver h1 { 
+            font-size: 48px; 
+            margin: 0; 
+        }
+        #gameOver p { 
+            font-size: 24px; 
+            margin: 10px 0; 
+        }
+        #gameOver button { 
+            font-size: 18px; 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            background: #333; 
+            color: white; 
+            border: 1px solid white; 
+            margin-top: 20px; 
+        }
+        #gameOver button:hover { 
+            background: #555; 
+        }
+        #startScreen { 
+            position: absolute; 
+            color: white; 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background: transparent; 
+            width: 800px; 
+            height: 600px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        #startScreen h1 { 
+            font-size: 48px; 
+            margin: 0 0 40px 0; 
+        }
+        #startScreen button { 
+            font-size: 18px; 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            background: #333; 
+            color: white; 
+            border: 1px solid white; 
+            margin: 10px; 
+        }
+        #startScreen button:hover { 
+            background: #555; 
+        }
+        #instructionsScreen { 
+            display: none; 
+            position: absolute; 
+            color: #ff0; 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background: transparent; 
+            width: 800px; 
+            height: 600px; 
+            perspective: 1000px; 
+            overflow: hidden; 
+        }
+        #instructionsContent { 
+            transform: rotateX(20deg) translateY(600px); 
+            animation: scrollInstructions 20s linear forwards; 
+            text-align: center; 
+        }
+        #instructionsContent h1 { 
+            font-size: 36px; 
+            margin: 20px 0; 
+            text-align: center; 
+        }
+        #instructionsContent p { 
+            font-size: 18px; 
+            margin: 10px 0; 
+            max-width: 400px; 
+            display: inline-block; 
+            text-align: center; 
+            line-height: 1.8; 
+        }
+        @keyframes scrollInstructions { 
+            to { transform: rotateX(20deg) translateY(-1000px); } 
+        }
+        #instructionsScreen button { 
+            position: absolute; 
+            bottom: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            font-size: 18px; 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            background: #333; 
+            color: white; 
+            border: 1px solid white; 
+        }
+        #instructionsScreen button:hover { 
+            background: #555; 
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="githubLink">
+        <a href="https://github.com/JonPurvis/xwing-battle" target="_blank">View on GitHub</a>
+    </div>
     <div id="startScreen">
         <h1>X-Wing Battle</h1>
         <button onclick="startGame()">Start Game</button>
