@@ -18,8 +18,10 @@
             border: 2px solid #fff; 
         }
         #githubLink { 
-            text-align: center; 
-            margin-top: 10px; 
+            position: absolute; 
+            bottom: 10px; 
+            left: 10px; 
+            z-index: 10;
         }
         #githubLink a { 
             color: #fff; 
@@ -249,7 +251,6 @@
         let lastBossSpawn = 0;
         let lastPowerupSpawn = 0;
         let timeElapsed = 0;
-        let gameStartTime = 0;
         let lastLifeAwarded = 0;
         let flashOpacity = 0;
         let bossJustSpawned = false;
@@ -266,22 +267,63 @@
         // Start screen ship constructor
         class StartShip {
             constructor() {
-                this.x = 100;
-                this.baseY = 100;
-                this.y = this.baseY;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
                 this.size = 20;
-                this.angle = 0;
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = 0;
+                this.maxSpeed = 2.5;
+                this.rotationSpeed = 0.03;
+                this.thrust = 0.03;
+                this.friction = 0.98;
+                this.dx = 0;
+                this.dy = 0;
+                this.isThrusting = true;
                 this.lastShotTime = 0;
-                this.shotInterval = 2000; // Shoot every 2 seconds
+                this.shotInterval = 2000;
+                this.targetAngle = this.angle;
+                this.lastTurnTime = 0;
+                this.turnInterval = 3000; // Change direction every 3 seconds
             }
 
             update(timestamp) {
-                // Oscillate vertically to give flying impression
-                this.y = this.baseY + Math.sin(timestamp * 0.002) * 20;
+                // Change target angle periodically
+                if (timestamp - this.lastTurnTime > this.turnInterval) {
+                    this.targetAngle = Math.random() * Math.PI * 2;
+                    this.lastTurnTime = timestamp;
+                    this.turnInterval = 2000 + Math.random() * 2000; // Random interval between 2-4 seconds
+                }
+
+                // Smoothly rotate towards target angle
+                let angleDiff = (this.targetAngle - this.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+                this.angle += Math.min(Math.max(angleDiff * 0.05, -this.rotationSpeed), this.rotationSpeed);
+
+                // Continuous thrust
+                this.dx += Math.cos(this.angle) * this.thrust;
+                this.dy += Math.sin(this.angle) * this.thrust;
+
+                // Apply friction and update position
+                this.dx *= this.friction;
+                this.dy *= this.friction;
+                this.speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                if (this.speed > this.maxSpeed) {
+                    this.dx = (this.dx / this.speed) * this.maxSpeed;
+                    this.dy = (this.dy / this.speed) * this.maxSpeed;
+                }
+                this.x += this.dx;
+                this.y += this.dy;
+
+                // Wrap around canvas
+                if (this.x < 0) this.x += canvas.width;
+                if (this.x > canvas.width) this.x -= canvas.width;
+                if (this.y < 0) this.y += canvas.height;
+                if (this.y > canvas.height) this.y -= canvas.height;
+
                 // Shoot periodically
                 if (timestamp - this.lastShotTime > this.shotInterval) {
                     this.shoot();
                     this.lastShotTime = timestamp;
+                    this.shotInterval = 1500 + Math.random() * 1000; // Random interval between 1.5-2.5 seconds
                 }
             }
 
@@ -321,6 +363,15 @@
                 ctx.fill();
                 ctx.fillStyle = '#aaa';
                 ctx.fillRect(-this.size / 4, -this.size / 8, this.size / 2, this.size / 4);
+                if (this.isThrusting) {
+                    ctx.beginPath();
+                    ctx.moveTo(-this.size, 0);
+                    ctx.lineTo(-this.size * 1.5, -this.size / 8);
+                    ctx.lineTo(-this.size * 1.5, this.size / 8);
+                    ctx.closePath();
+                    ctx.fillStyle = '#ff4500';
+                    ctx.fill();
+                }
                 ctx.restore();
             }
 
@@ -666,7 +717,7 @@
                 this.dx *= this.friction;
                 this.dy *= this.friction;
                 this.speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
-                let currentMaxSpeed = activePowerup === 'boost' ? this.maxSpeed * 1.5 : this.maxSpeed;
+                let currentMaxSpeed = activePowerup === 'boost' ? this.maxSpeed * 2 : this.maxSpeed;
                 if (this.speed > currentMaxSpeed) {
                     this.dx = (this.dx / this.speed) * currentMaxSpeed;
                     this.dy = (this.dy / this.speed) * currentMaxSpeed;
@@ -718,8 +769,9 @@
                 if (this.isThrusting) {
                     ctx.beginPath();
                     ctx.moveTo(-this.size, 0);
-                    ctx.lineTo(-this.size * 1.5, -this.size / 8);
-                    ctx.lineTo(-this.size * 1.5, this.size / 8);
+                    const flameSize = activePowerup === 'boost' ? this.size * 2 : this.size * 1.5;
+                    ctx.lineTo(-flameSize, -this.size / 8);
+                    ctx.lineTo(-flameSize, this.size / 8);
                     ctx.closePath();
                     ctx.fillStyle = '#ff4500';
                     ctx.fill();
@@ -787,7 +839,8 @@
                 this.width = this.size;
                 this.height = this.size;
                 this.setPosition();
-                this.speed = isBoss ? 0.5 : 0.7;
+                this.baseSpeed = isBoss ? 1.0 : 0.7; // Increased boss speed
+                this.speed = this.baseSpeed * (1 + score / 5000); // Scale speed with score
                 this.color = '#666';
                 this.points = isBoss ? 200 : 25;
                 this.health = isBoss ? Math.floor(5 + score / 1000) : 1;
@@ -932,7 +985,7 @@
         function spawnEnemy(isBoss = false) {
             if (isBoss) {
                 enemies.forEach((e) => {
-                    if (!e.isBoss) e.fleeing = true;
+                    if (!e.isBoss && Math.random() < 0.5) e.fleeing = true; // Only 50% flee
                 });
                 flashOpacity = 1;
                 bossJustSpawned = true;
@@ -1161,7 +1214,7 @@
                 // No updates needed for these screens
             } else if (gameStarted && !gameOver) {
                 timeElapsed = (timestamp - gameStartTime) / 1000;
-                spawnInterval = Math.max(1000, 3000 - timeElapsed * 50 - score / 100);
+                spawnInterval = Math.max(1000, 3000 - timeElapsed * 50 - score / 100 - score / 500); // Increase spawn rate with score
 
                 if (gameOverTriggered && !gameOver) {
                     const timeSinceDelay = (timestamp - gameOverDelayStart) / 1000;
